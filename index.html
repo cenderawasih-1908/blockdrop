@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Block Drop</title>
+  </head>
+  <body>
+    <main class="shell" aria-label="Block Drop game">
+      <section class="playfield-panel" aria-label="Game board">
+        <div id="game"></div>
+        <div id="stateOverlay" class="state-overlay is-hidden" aria-live="polite">
+          <div class="state-box">
+            <p id="stateTitle">Paused</p>
+            <button id="stateButton" class="primary-action" type="button" data-action="pause">Resume</button>
+          </div>
+        </div>
+        <div id="clearToast" class="clear-toast is-hidden" aria-live="polite"></div>
+        <div id="mainMenu" class="main-menu" aria-labelledby="mainMenuTitle">
+          <div class="main-menu-box">
+            <span class="eyebrow">Main menu</span>
+            <h2 id="mainMenuTitle">Block Drop</h2>
+            <div class="main-menu-actions">
+              <button id="mainPlayButton" class="primary-action" type="button">Start</button>
+              <button id="mainConfigButton" class="secondary-action" type="button">Button Config</button>
+              <button id="mainRestartButton" class="secondary-action" type="button">Restart</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="hud" aria-label="Game status">
+        <header class="hud-header">
+          <span class="eyebrow">Mini arcade</span>
+          <h1>Block Drop</h1>
+        </header>
+
+        <section class="stats" aria-label="Stats">
+          <div class="stat">
+            <span>Score</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="stat">
+            <span>Lines</span>
+            <strong id="lines">0</strong>
+          </div>
+          <div class="stat">
+            <span>Level</span>
+            <strong id="level">1</strong>
+          </div>
+        </section>
+
+        <section class="next-panel" aria-label="Next piece">
+          <span>Next</span>
+          <div id="nextPiece" class="next-grid" aria-hidden="true"></div>
+        </section>
+
+        <section class="controls" aria-label="Touch controls">
+          <button class="tool-button" type="button" data-action="move-left" aria-label="Move left" title="Move left">&#8592;</button>
+          <button class="tool-button" type="button" data-action="rotate-cw" aria-label="Rotate" title="Rotate">&#8635;</button>
+          <button class="tool-button" type="button" data-action="move-right" aria-label="Move right" title="Move right">&#8594;</button>
+          <button class="tool-button wide" type="button" data-action="soft-drop" aria-label="Soft drop" title="Soft drop">&#8595;</button>
+          <button class="tool-button wide accent" type="button" data-action="hard-drop" aria-label="Hard drop" title="Hard drop">&#10515;</button>
+        </section>
+
+        <footer class="footer-actions">
+          <button id="menuButton" class="tool-button" type="button" aria-label="Main menu" title="Main menu">&#9776;</button>
+          <button class="tool-button" type="button" data-action="pause" aria-label="Pause" title="Pause">&#10074;&#10074;</button>
+          <button class="tool-button" type="button" data-action="restart" aria-label="Restart" title="Restart">&#8634;</button>
+        </footer>
+      </aside>
+    </main>
+
+    <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+      <div class="settings-shell">
+        <header class="settings-header">
+          <div>
+            <span class="eyebrow">Settings</span>
+            <h2 id="settingsTitle">Button Config</h2>
+          </div>
+          <button id="closeMenuButton" class="tool-button close-button" type="button" aria-label="Close" title="Close">&#215;</button>
+        </header>
+
+        <section class="binding-panel" aria-label="Keyboard bindings">
+          <div id="bindingList" class="binding-list"></div>
+          <p id="bindingStatus" class="binding-status" aria-live="polite"></p>
+        </section>
+
+        <footer class="settings-actions">
+          <button id="resetBindingsButton" class="secondary-action" type="button">Reset</button>
+          <button id="doneMenuButton" class="primary-action" type="button">Done</button>
+        </footer>
+      </div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
