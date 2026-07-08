@@ -10,6 +10,8 @@ import {
   type GameAction,
   type KeyBindings
 } from "./game/input/actions";
+import { SoundEngine } from "./game/audio/soundEngine";
+import { SOUND_CUE_EVENT, type SoundCueDetail } from "./game/audio/soundCues";
 import { PIECE_META, PIECES, type PieceType } from "./game/simulation/pieces";
 import type { GameSnapshot } from "./game/simulation/blockDropGame";
 import { PlayScene } from "./phaser/scenes/PlayScene";
@@ -52,6 +54,7 @@ const mainRestartButton = requireElement<HTMLButtonElement>("mainRestartButton")
 const clearToast = requireElement("clearToast");
 const nextGrid = requireElement("nextPiece");
 const menuButton = requireElement<HTMLButtonElement>("menuButton");
+const soundButton = requireElement<HTMLButtonElement>("soundButton");
 const settingsDialog = requireElement<HTMLDialogElement>("settingsDialog");
 const closeMenuButton = requireElement<HTMLButtonElement>("closeMenuButton");
 const doneMenuButton = requireElement<HTMLButtonElement>("doneMenuButton");
@@ -67,9 +70,11 @@ let mainMenuOpen = true;
 let latestSnapshot: GameSnapshot | null = null;
 let clearToastTimer = 0;
 let gestureStart: { x: number; y: number; pointerId: number; time: number } | null = null;
+const soundEngine = new SoundEngine();
 
 renderBindingRows();
 publishBindings();
+syncSoundButton();
 syncMainMenu();
 syncMenuGate();
 
@@ -91,7 +96,23 @@ window.addEventListener("blockdrop:clear", (event) => {
   showClearToast((event as CustomEvent<GameSnapshot["lastClear"]>).detail);
 });
 
+window.addEventListener(SOUND_CUE_EVENT, (event) => {
+  const detail = (event as CustomEvent<SoundCueDetail>).detail;
+  soundEngine.play(detail.cue, detail.intensity);
+});
+
+document.addEventListener("pointerdown", () => void soundEngine.unlock(), { capture: true });
+document.addEventListener("keydown", () => void soundEngine.unlock(), { capture: true });
+
 menuButton.addEventListener("click", openMainMenu);
+soundButton.addEventListener("click", () => {
+  const muted = soundEngine.toggleMuted();
+  syncSoundButton();
+
+  if (!muted) {
+    void soundEngine.unlock().then(() => soundEngine.play("toggle-sound"));
+  }
+});
 mainPlayButton.addEventListener("click", () => {
   const shouldRestart = latestSnapshot?.status === "gameover";
   closeMainMenu();
@@ -105,6 +126,7 @@ mainRestartButton.addEventListener("click", () => {
 closeMenuButton.addEventListener("click", closeSettings);
 doneMenuButton.addEventListener("click", closeSettings);
 resetBindingsButton.addEventListener("click", () => {
+  soundEngine.play("select");
   keyBindings = createDefaultKeyBindings();
   saveKeyBindings();
   publishBindings();
@@ -318,6 +340,7 @@ function bindPlayfieldGestures(): void {
 }
 
 function openMainMenu(): void {
+  soundEngine.play("menu");
   mainMenuOpen = true;
   syncMainMenu();
   syncMenuGate();
@@ -350,6 +373,7 @@ function openSettings(): void {
     return;
   }
 
+  soundEngine.play("select");
   pendingBindingAction = null;
   bindingStatus.textContent = "";
   renderBindingRows();
@@ -359,8 +383,19 @@ function openSettings(): void {
 
 function closeSettings(): void {
   if (settingsDialog.open) {
+    soundEngine.play("select");
     settingsDialog.close();
   }
+}
+
+function syncSoundButton(): void {
+  const muted = soundEngine.isMuted;
+
+  soundButton.textContent = muted ? "Off" : "Snd";
+  soundButton.classList.toggle("is-muted", muted);
+  soundButton.setAttribute("aria-pressed", String(!muted));
+  soundButton.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
+  soundButton.title = muted ? "Turn sound on" : "Turn sound off";
 }
 
 function showClearToast(clear: GameSnapshot["lastClear"]): void {

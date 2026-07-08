@@ -14,6 +14,7 @@ import {
   type GameSnapshot,
   getPieceCells
 } from "../../game/simulation/blockDropGame";
+import { emitSoundCue } from "../../game/audio/soundCues";
 import { PIECE_META, PIECES, type Cell, type PieceType } from "../../game/simulation/pieces";
 
 const CELL_SIZE = 30;
@@ -93,7 +94,14 @@ export class PlayScene extends Phaser.Scene {
   };
 
   private readonly startHandler = (): void => {
+    const before = this.sim.getSnapshot();
     this.sim.start();
+    const after = this.sim.getSnapshot();
+
+    if (after.version !== before.version) {
+      emitSoundCue(before.status === "paused" ? "resume" : "start");
+    }
+
     this.render();
   };
 
@@ -108,6 +116,7 @@ export class PlayScene extends Phaser.Scene {
 
     if (open && this.sim.getSnapshot().status === "playing") {
       this.sim.togglePause();
+      emitSoundCue("pause");
     }
 
     this.render();
@@ -206,7 +215,39 @@ export class PlayScene extends Phaser.Scene {
         break;
     }
 
+    this.emitActionSound(action, before, this.sim.getSnapshot());
     this.render();
+  }
+
+  private emitActionSound(action: GameAction, before: GameSnapshot, after: GameSnapshot): void {
+    const changed = after.version !== before.version;
+
+    if (!changed && action !== "restart") {
+      return;
+    }
+
+    switch (action) {
+      case "move-left":
+      case "move-right":
+        emitSoundCue("move");
+        break;
+      case "soft-drop":
+        emitSoundCue("soft-drop");
+        break;
+      case "hard-drop":
+        emitSoundCue("hard-drop");
+        break;
+      case "rotate-cw":
+      case "rotate-ccw":
+        emitSoundCue("rotate");
+        break;
+      case "pause":
+        emitSoundCue(after.status === "paused" ? "pause" : "resume");
+        break;
+      case "restart":
+        emitSoundCue("restart");
+        break;
+    }
   }
 
   private render(): void {
@@ -308,6 +349,10 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
+    if (previous.status !== "gameover" && snapshot.status === "gameover") {
+      emitSoundCue("game-over");
+    }
+
     const clear = snapshot.lastClear;
 
     if (clear && previous.lastClear?.id !== clear.id) {
@@ -320,6 +365,7 @@ export class PlayScene extends Phaser.Scene {
       });
       this.emitClearSparks(clear.rows, clear.isQuad);
       window.dispatchEvent(new CustomEvent("blockdrop:clear", { detail: clear }));
+      emitSoundCue(clear.isQuad ? "quad-clear" : "line-clear", { intensity: clear.count });
       this.cameras.main.shake(clear.isQuad ? 280 : 150, clear.isQuad ? 0.008 : 0.004);
       return;
     }
@@ -344,6 +390,7 @@ export class PlayScene extends Phaser.Scene {
       this.blockFlashes.push({ ...cell, age: 0, duration: 280 });
     }
 
+    emitSoundCue("lock");
     this.emitSparks(newCells, 3);
     this.cameras.main.shake(70, 0.0018);
   }
