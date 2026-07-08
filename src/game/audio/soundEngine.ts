@@ -1,6 +1,11 @@
 import type { SoundCue } from "./soundCues";
 
 const SOUND_MUTED_STORAGE_KEY = "block-drop-sound-muted";
+const MUSIC_TARGET_GAIN = 0.44;
+const MUSIC_MELODY_VOLUME = 0.085;
+const MUSIC_BASS_VOLUME = 0.075;
+const MUSIC_PULSE_VOLUME = 0.032;
+const MUSIC_PAD_VOLUME = 0.038;
 
 type ToneOptions = {
   delay?: number;
@@ -187,7 +192,7 @@ export class SoundEngine {
       return;
     }
 
-    this.fadeMusic(0.07, 0.34);
+    this.fadeMusic(MUSIC_TARGET_GAIN, 0.34);
     this.scheduleMusicPattern();
   }
 
@@ -206,8 +211,9 @@ export class SoundEngine {
     const context = this.ensureContext();
     const stepDuration = 0.185;
     const start = context.currentTime + 0.035;
-    const melody = [392, 0, 523.25, 0, 493.88, 0, 329.63, 0, 392, 0, 587.33, 0, 523.25, 493.88, 0, 329.63];
+    const melody = [392, 0, 523.25, 440, 493.88, 0, 329.63, 349.23, 392, 0, 587.33, 493.88, 523.25, 493.88, 392, 329.63];
     const bass = [98, 0, 0, 0, 130.81, 0, 0, 0, 110, 0, 0, 0, 146.83, 0, 0, 0];
+    const padRoots = [196, 261.63, 220, 293.66];
 
     for (let index = 0; index < melody.length; index += 1) {
       const step = (this.musicStep + index) % melody.length;
@@ -216,15 +222,19 @@ export class SoundEngine {
       const bassFrequency = bass[step];
 
       if (melodyFrequency > 0) {
-        this.musicTone(melodyFrequency, 0.11, when, 0.032, "triangle");
+        this.musicTone(melodyFrequency, 0.13, when, MUSIC_MELODY_VOLUME, "triangle");
       }
 
       if (bassFrequency > 0) {
-        this.musicTone(bassFrequency, 0.16, when, 0.03, "sine");
+        this.musicTone(bassFrequency, 0.2, when, MUSIC_BASS_VOLUME, "sine");
       }
 
       if (step % 4 === 0) {
-        this.musicTone(196, 0.045, when, 0.012, "square");
+        const padRoot = padRoots[Math.floor(step / 4) % padRoots.length];
+
+        this.musicTone(196, 0.055, when, MUSIC_PULSE_VOLUME, "square");
+        this.musicTone(padRoot, 0.58, when, MUSIC_PAD_VOLUME, "triangle");
+        this.musicTone(padRoot * 1.5, 0.58, when + 0.012, MUSIC_PAD_VOLUME * 0.72, "sine");
       }
     }
 
