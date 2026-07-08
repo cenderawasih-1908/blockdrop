@@ -50,7 +50,9 @@ const playfieldPanel = requireElement("playfieldPanel");
 const mainMenu = requireElement("mainMenu");
 const mainPlayButton = requireElement<HTMLButtonElement>("mainPlayButton");
 const mainConfigButton = requireElement<HTMLButtonElement>("mainConfigButton");
+const mainCreditsButton = requireElement<HTMLButtonElement>("mainCreditsButton");
 const mainRestartButton = requireElement<HTMLButtonElement>("mainRestartButton");
+const creditsPanel = requireElement("creditsPanel");
 const clearToast = requireElement("clearToast");
 const nextGrid = requireElement("nextPiece");
 const menuButton = requireElement<HTMLButtonElement>("menuButton");
@@ -119,7 +121,9 @@ mainPlayButton.addEventListener("click", () => {
   sendGameAction(shouldRestart ? "restart" : "start");
 });
 mainConfigButton.addEventListener("click", openSettings);
+mainCreditsButton.addEventListener("click", toggleCredits);
 mainRestartButton.addEventListener("click", () => {
+  setCreditsOpen(false);
   closeMainMenu();
   sendGameAction("restart");
 });
@@ -347,6 +351,7 @@ function openMainMenu(): void {
 }
 
 function closeMainMenu(): void {
+  setCreditsOpen(false);
   mainMenuOpen = false;
   syncMainMenu();
   syncMenuGate();
@@ -373,6 +378,7 @@ function openSettings(): void {
     return;
   }
 
+  setCreditsOpen(false);
   soundEngine.play("select");
   pendingBindingAction = null;
   bindingStatus.textContent = "";
@@ -396,6 +402,19 @@ function syncSoundButton(): void {
   soundButton.setAttribute("aria-pressed", String(!muted));
   soundButton.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
   soundButton.title = muted ? "Turn sound on" : "Turn sound off";
+}
+
+function toggleCredits(): void {
+  const shouldOpen = creditsPanel.classList.contains("is-hidden");
+
+  soundEngine.play("select");
+  setCreditsOpen(shouldOpen);
+}
+
+function setCreditsOpen(open: boolean): void {
+  creditsPanel.classList.toggle("is-hidden", !open);
+  mainCreditsButton.textContent = open ? "Hide Credits" : "Credits";
+  mainCreditsButton.setAttribute("aria-expanded", String(open));
 }
 
 function showClearToast(clear: GameSnapshot["lastClear"]): void {

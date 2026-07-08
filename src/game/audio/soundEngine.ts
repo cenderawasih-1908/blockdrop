@@ -1,11 +1,8 @@
 import type { SoundCue } from "./soundCues";
 
 const SOUND_MUTED_STORAGE_KEY = "block-drop-sound-muted";
-const MUSIC_TARGET_GAIN = 0.44;
-const MUSIC_MELODY_VOLUME = 0.085;
-const MUSIC_BASS_VOLUME = 0.075;
-const MUSIC_PULSE_VOLUME = 0.032;
-const MUSIC_PAD_VOLUME = 0.038;
+const MUSIC_URL = "/audio/block-drop-jingle.mp3";
+const MUSIC_VOLUME = 0.72;
 
 type ToneOptions = {
   delay?: number;
@@ -23,10 +20,8 @@ type NoiseOptions = {
 export class SoundEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
-  private musicGain: GainNode | null = null;
+  private musicElement: HTMLAudioElement | null = null;
   private musicActive = false;
-  private musicStep = 0;
-  private musicTimer = 0;
   private muted = readStoredMuted();
   private lastPlayed = new Map<SoundCue, number>();
 
@@ -39,9 +34,9 @@ export class SoundEngine {
     storeMuted(this.muted);
 
     if (this.muted) {
-      this.stopMusicLoop();
+      this.stopMusic();
     } else if (this.musicActive) {
-      void this.unlock().then(() => this.startMusicLoop());
+      void this.unlock().then(() => void this.startMusic());
     }
 
     return this.muted;
@@ -60,6 +55,10 @@ export class SoundEngine {
       } catch {
         // Some mobile browsers reject resume outside a trusted gesture.
       }
+    }
+
+    if (this.musicActive) {
+      await this.startMusic();
     }
   }
 
@@ -157,126 +156,59 @@ export class SoundEngine {
     return context;
   }
 
-  private ensureMusicGain(): GainNode {
-    const context = this.ensureContext();
-
-    if (this.musicGain) {
-      return this.musicGain;
-    }
-
-    const gain = context.createGain();
-
-    gain.gain.value = 0;
-    gain.connect(this.master ?? context.destination);
-    this.musicGain = gain;
-    return gain;
-  }
-
   private setMusicActive(active: boolean): void {
     this.musicActive = active;
 
     if (!active || this.muted) {
-      this.stopMusicLoop();
+      this.stopMusic();
       return;
     }
 
-    void this.unlock().then(() => {
-      if (this.musicActive && !this.muted) {
-        this.startMusicLoop();
-      }
-    });
+    void this.startMusic();
+    void this.unlock();
   }
 
-  private startMusicLoop(): void {
-    if (this.musicTimer || this.muted || !this.musicActive) {
-      return;
+  private ensureMusicElement(): HTMLAudioElement {
+    if (this.musicElement) {
+      return this.musicElement;
     }
 
-    this.fadeMusic(MUSIC_TARGET_GAIN, 0.34);
-    this.scheduleMusicPattern();
+    const audio = document.createElement("audio");
+
+    audio.src = MUSIC_URL;
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = MUSIC_VOLUME;
+    this.musicElement = audio;
+    return audio;
   }
 
-  private stopMusicLoop(): void {
-    window.clearTimeout(this.musicTimer);
-    this.musicTimer = 0;
-    this.fadeMusic(0, 0.16);
-  }
-
-  private scheduleMusicPattern(): void {
+  private async startMusic(): Promise<void> {
     if (this.muted || !this.musicActive) {
-      this.musicTimer = 0;
       return;
     }
 
-    const context = this.ensureContext();
-    const stepDuration = 0.185;
-    const start = context.currentTime + 0.035;
-    const melody = [392, 0, 523.25, 440, 493.88, 0, 329.63, 349.23, 392, 0, 587.33, 493.88, 523.25, 493.88, 392, 329.63];
-    const bass = [98, 0, 0, 0, 130.81, 0, 0, 0, 110, 0, 0, 0, 146.83, 0, 0, 0];
-    const padRoots = [196, 261.63, 220, 293.66];
+    const audio = this.ensureMusicElement();
 
-    for (let index = 0; index < melody.length; index += 1) {
-      const step = (this.musicStep + index) % melody.length;
-      const when = start + index * stepDuration;
-      const melodyFrequency = melody[step];
-      const bassFrequency = bass[step];
+    audio.volume = MUSIC_VOLUME;
 
-      if (melodyFrequency > 0) {
-        this.musicTone(melodyFrequency, 0.13, when, MUSIC_MELODY_VOLUME, "triangle");
-      }
-
-      if (bassFrequency > 0) {
-        this.musicTone(bassFrequency, 0.2, when, MUSIC_BASS_VOLUME, "sine");
-      }
-
-      if (step % 4 === 0) {
-        const padRoot = padRoots[Math.floor(step / 4) % padRoots.length];
-
-        this.musicTone(196, 0.055, when, MUSIC_PULSE_VOLUME, "square");
-        this.musicTone(padRoot, 0.58, when, MUSIC_PAD_VOLUME, "triangle");
-        this.musicTone(padRoot * 1.5, 0.58, when + 0.012, MUSIC_PAD_VOLUME * 0.72, "sine");
-      }
+    if (!audio.paused) {
+      return;
     }
 
-    this.musicStep = (this.musicStep + melody.length) % melody.length;
-    this.musicTimer = window.setTimeout(() => {
-      this.musicTimer = 0;
-      this.scheduleMusicPattern();
-    }, melody.length * stepDuration * 1000 - 80);
+    try {
+      await audio.play();
+    } catch {
+      // Browsers may still block playback until the next trusted gesture.
+    }
   }
 
-  private musicTone(
-    frequency: number,
-    duration: number,
-    start: number,
-    volume: number,
-    type: OscillatorType
-  ): void {
-    const context = this.ensureContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const end = start + duration;
+  private stopMusic(): void {
+    const audio = this.musicElement;
 
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, start);
-    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.996, end);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.linearRampToValueAtTime(volume, start + 0.018);
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    oscillator.connect(gain);
-    gain.connect(this.ensureMusicGain());
-    oscillator.start(start);
-    oscillator.stop(end + 0.02);
-  }
-
-  private fadeMusic(volume: number, duration: number): void {
-    const context = this.ensureContext();
-    const gain = this.ensureMusicGain();
-    const now = context.currentTime;
-
-    gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(gain.gain.value, now);
-    gain.gain.linearRampToValueAtTime(volume, now + duration);
+    if (audio) {
+      audio.pause();
+    }
   }
 
   private tone(frequency: number, duration: number, options: ToneOptions = {}): void {

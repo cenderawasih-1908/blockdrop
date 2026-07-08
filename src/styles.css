@@ -135,6 +135,27 @@ button {
   gap: 10px;
 }
 
+.credits-panel {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid rgba(247, 239, 224, 0.14);
+  border-radius: 7px;
+  background: rgba(16, 18, 22, 0.64);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.32;
+}
+
+.credits-panel strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.credits-panel.is-hidden {
+  display: none;
+}
+
 .clear-toast {
   position: absolute;
   z-index: 4;
@@ -578,7 +599,7 @@ h1 {
   }
 
   .main-menu-box {
-    width: min(260px, 100%);
+    width: min(272px, 100%);
     padding: 18px;
     gap: 13px;
   }
