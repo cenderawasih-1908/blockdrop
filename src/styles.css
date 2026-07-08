@@ -502,28 +502,81 @@ h1 {
 }
 
 @media (max-width: 760px) {
+  :root {
+    --mobile-side-gap: 10px;
+    --mobile-top-gap: max(8px, env(safe-area-inset-top));
+    --mobile-bottom-gap: max(8px, env(safe-area-inset-bottom));
+    --mobile-hud-height: 84px;
+    --mobile-controls-height: 152px;
+    --mobile-rail-gap: 10px;
+    --mobile-board-h: min(
+      660px,
+      calc(
+        100dvh - var(--mobile-top-gap) - var(--mobile-bottom-gap) - var(--mobile-hud-height) -
+          var(--mobile-controls-height) - (var(--mobile-rail-gap) * 2)
+      ),
+      calc((100vw - (var(--mobile-side-gap) * 2)) * 11 / 6)
+    );
+  }
+
+  html,
   body {
-    padding-bottom: 124px;
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    position: fixed;
+    inset: 0;
+    touch-action: manipulation;
   }
 
   .shell {
-    min-height: auto;
-    flex-direction: column;
-    justify-content: start;
-    padding: 14px 14px 124px;
-    gap: 14px;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    display: block;
+    padding: 0;
+    overflow: hidden;
   }
 
   .playfield-panel {
-    width: min(360px, calc(100vw - 28px));
+    position: fixed;
+    z-index: 1;
+    top: calc(
+      var(--mobile-top-gap) + var(--mobile-hud-height) + var(--mobile-rail-gap) +
+        (
+          100dvh - var(--mobile-top-gap) - var(--mobile-bottom-gap) - var(--mobile-hud-height) -
+            var(--mobile-controls-height) - (var(--mobile-rail-gap) * 2) - var(--mobile-board-h)
+        ) / 2
+    );
+    left: 50%;
+    width: calc(var(--mobile-board-h) * 6 / 11);
+    height: var(--mobile-board-h);
+    min-width: 0;
+    max-width: calc(100vw - (var(--mobile-side-gap) * 2));
+    transform: translateX(-50%);
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34);
+    touch-action: none;
   }
 
   .main-menu {
-    padding: 18px;
+    padding: 12px;
   }
 
   .main-menu-box {
     width: min(260px, 100%);
+    padding: 18px;
+    gap: 13px;
+  }
+
+  .main-menu-box h2 {
+    font-size: 1.72rem;
   }
 
   .clear-toast {
@@ -533,18 +586,52 @@ h1 {
   }
 
   .hud {
-    width: min(360px, calc(100vw - 28px));
-    max-height: none;
-    align-self: center;
-    padding: 14px;
+    position: fixed;
+    z-index: 18;
+    top: var(--mobile-top-gap);
+    right: var(--mobile-side-gap);
+    left: var(--mobile-side-gap);
+    width: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 74px;
+    grid-template-areas:
+      "stats next"
+      "actions next";
+    gap: 6px;
+    align-self: auto;
+    transform: none;
+    min-height: 0;
+    max-height: var(--mobile-hud-height);
+    padding: 6px;
+    border-color: rgba(247, 239, 224, 0.12);
+    background: rgba(29, 32, 37, 0.93);
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+
+  body.menu-active .hud {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .hud-header {
+    display: none;
   }
 
   .controls {
     position: fixed;
     z-index: 20;
     left: 50%;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    width: min(360px, calc(100vw - 28px));
+    bottom: var(--mobile-bottom-gap);
+    width: min(430px, calc(100vw - 20px));
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "left rotate right"
+      "soft hard hard";
+    gap: 10px;
     transform: translateX(-50%);
     padding: 10px;
     border: 1px solid rgba(247, 239, 224, 0.16);
@@ -552,14 +639,67 @@ h1 {
     background: rgba(29, 32, 37, 0.92);
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
     backdrop-filter: blur(8px);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      opacity 160ms ease,
+      visibility 160ms ease,
+      transform 160ms ease;
+  }
+
+  .controls [data-action="move-left"] {
+    grid-area: left;
+  }
+
+  .controls [data-action="rotate-cw"] {
+    grid-area: rotate;
+  }
+
+  .controls [data-action="move-right"] {
+    grid-area: right;
+  }
+
+  .controls [data-action="soft-drop"] {
+    grid-area: soft;
+  }
+
+  .controls [data-action="hard-drop"] {
+    grid-area: hard;
+  }
+
+  body.menu-active .controls {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, 18px);
+  }
+
+  .controls .tool-button {
+    min-height: clamp(54px, 7dvh, 64px);
+    border-radius: 8px;
+    box-shadow: 0 5px 0 #14161a;
+    font-size: 1.28rem;
   }
 
   .controls .tool-button:active {
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
 
   .footer-actions {
-    margin-top: -4px;
+    grid-area: actions;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    align-self: stretch;
+    margin: 0;
+  }
+
+  .footer-actions .tool-button {
+    min-height: 30px;
+    box-shadow: 0 2px 0 #14161a;
+    font-size: 0.86rem;
   }
 
   .settings-dialog {
@@ -572,34 +712,56 @@ h1 {
   }
 
   .stats {
+    grid-area: stats;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 5px;
   }
 
   .stat {
     display: grid;
-    gap: 4px;
+    gap: 2px;
     align-content: center;
     justify-content: start;
-    min-height: 58px;
-    padding: 10px;
+    min-height: 35px;
+    padding: 5px 7px;
     border: 1px solid rgba(247, 239, 224, 0.12);
     border-radius: 7px;
   }
 
+  .stat span {
+    font-size: 0.58rem;
+  }
+
   .stat strong {
-    font-size: 1.08rem;
+    font-size: 0.9rem;
   }
 
   .next-panel {
-    grid-template-columns: auto 1fr;
+    grid-area: next;
+    grid-template-columns: 1fr;
     align-items: center;
+    justify-items: center;
+    gap: 5px;
+    padding: 6px;
+    min-width: 0;
+  }
+
+  .next-panel > span {
+    font-size: 0.58rem;
   }
 
   .next-grid {
-    transform-origin: left center;
-    transform: scale(0.82);
-    min-height: 88px;
+    grid-template-columns: repeat(4, 12px);
+    grid-template-rows: repeat(4, 12px);
+    gap: 2px;
+    min-height: 54px;
+    transform: none;
+  }
+
+  .next-grid span {
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
   }
 
   .binding-row {
@@ -622,6 +784,66 @@ h1 {
   .settings-actions .secondary-action {
     width: 100%;
     min-width: 0;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 700px) {
+  :root {
+    --mobile-hud-height: 72px;
+    --mobile-controls-height: 124px;
+    --mobile-rail-gap: 7px;
+  }
+
+  .shell {
+    height: 100dvh;
+  }
+
+  .playfield-panel {
+    max-width: calc(100vw - 16px);
+  }
+
+  .hud {
+    grid-template-columns: minmax(0, 1fr) 64px;
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .stat {
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  .stat strong {
+    font-size: 0.9rem;
+  }
+
+  .footer-actions .tool-button {
+    min-height: 27px;
+  }
+
+  .next-panel {
+    padding: 6px;
+  }
+
+  .next-grid {
+    grid-template-columns: repeat(4, 12px);
+    grid-template-rows: repeat(4, 12px);
+    min-height: 54px;
+  }
+
+  .next-grid span {
+    width: 12px;
+    height: 12px;
+  }
+
+  .controls {
+    gap: 7px;
+    padding: 7px;
+  }
+
+  .controls .tool-button {
+    min-height: clamp(44px, 7dvh, 52px);
+    font-size: 1.14rem;
   }
 }
 

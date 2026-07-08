@@ -44,6 +44,7 @@ const levelElement = requireElement("level");
 const overlayElement = requireElement("stateOverlay");
 const stateTitleElement = requireElement("stateTitle");
 const stateButton = requireElement<HTMLButtonElement>("stateButton");
+const playfieldPanel = requireElement("playfieldPanel");
 const mainMenu = requireElement("mainMenu");
 const mainPlayButton = requireElement<HTMLButtonElement>("mainPlayButton");
 const mainConfigButton = requireElement<HTMLButtonElement>("mainConfigButton");
@@ -65,11 +66,12 @@ const nextCells = Array.from({ length: 16 }, () => {
 let mainMenuOpen = true;
 let latestSnapshot: GameSnapshot | null = null;
 let clearToastTimer = 0;
+let gestureStart: { x: number; y: number; pointerId: number; time: number } | null = null;
 
 renderBindingRows();
 publishBindings();
 syncMainMenu();
-window.setTimeout(syncMenuGate, 0);
+syncMenuGate();
 
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-action]")) {
   const action = button.dataset.action as GameAction | undefined;
@@ -78,6 +80,8 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-action]
     bindActionButton(button, action);
   }
 }
+
+bindPlayfieldGestures();
 
 window.addEventListener("blockdrop:state", (event) => {
   renderHud((event as CustomEvent<GameSnapshot>).detail);
@@ -248,6 +252,71 @@ function bindActionButton(button: HTMLButtonElement, action: GameAction): void {
   });
 }
 
+function bindPlayfieldGestures(): void {
+  playfieldPanel.addEventListener("pointerdown", (event) => {
+    if (mainMenuOpen || settingsDialog.open || event.pointerType === "mouse") {
+      return;
+    }
+
+    if ((event.target as HTMLElement).closest("button, dialog")) {
+      return;
+    }
+
+    gestureStart = {
+      x: event.clientX,
+      y: event.clientY,
+      pointerId: event.pointerId,
+      time: window.performance.now()
+    };
+    playfieldPanel.setPointerCapture(event.pointerId);
+  });
+
+  playfieldPanel.addEventListener("pointerup", (event) => {
+    if (!gestureStart || gestureStart.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const dx = event.clientX - gestureStart.x;
+    const dy = event.clientY - gestureStart.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const elapsed = window.performance.now() - gestureStart.time;
+    gestureStart = null;
+
+    if (mainMenuOpen || settingsDialog.open || elapsed > 900) {
+      return;
+    }
+
+    if (Math.hypot(dx, dy) < 18) {
+      sendGameAction("rotate-cw");
+      return;
+    }
+
+    if (absX > absY && absX > 26) {
+      sendGameAction(dx < 0 ? "move-left" : "move-right");
+      return;
+    }
+
+    if (dy > 95) {
+      sendGameAction("hard-drop");
+      return;
+    }
+
+    if (dy > 28) {
+      sendGameAction("soft-drop");
+      return;
+    }
+
+    if (dy < -36) {
+      sendGameAction("rotate-cw");
+    }
+  });
+
+  playfieldPanel.addEventListener("pointercancel", () => {
+    gestureStart = null;
+  });
+}
+
 function openMainMenu(): void {
   mainMenuOpen = true;
   syncMainMenu();
@@ -400,7 +469,9 @@ function sendGameAction(action: GameAction | "start"): void {
 }
 
 function syncMenuGate(): void {
-  window.dispatchEvent(new CustomEvent("blockdrop:menu-state", { detail: { open: mainMenuOpen || settingsDialog.open } }));
+  const menuActive = mainMenuOpen || settingsDialog.open;
+  document.body.classList.toggle("menu-active", menuActive);
+  window.dispatchEvent(new CustomEvent("blockdrop:menu-state", { detail: { open: menuActive } }));
 }
 
 function cloneKeyBindings(bindings: KeyBindings): KeyBindings {
