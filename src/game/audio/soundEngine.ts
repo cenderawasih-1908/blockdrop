@@ -2,7 +2,7 @@ import type { SoundCue } from "./soundCues";
 
 const SOUND_MUTED_STORAGE_KEY = "block-drop-sound-muted";
 const MUSIC_URL = "/audio/block-drop-jingle.mp3";
-const MUSIC_VOLUME = 0.72;
+const MUSIC_VOLUME = 0.34;
 
 type ToneOptions = {
   delay?: number;
@@ -21,6 +21,7 @@ export class SoundEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private musicElement: HTMLAudioElement | null = null;
+  private musicDuckingTimer = 0;
   private musicActive = false;
   private muted = readStoredMuted();
   private lastPlayed = new Map<SoundCue, number>();
@@ -76,6 +77,7 @@ export class SoundEngine {
     }
 
     void this.unlock();
+    this.duckMusicForCue(cue);
 
     switch (cue) {
       case "move":
@@ -89,24 +91,24 @@ export class SoundEngine {
         this.tone(118, 0.035, { type: "triangle", volume: 0.032 });
         break;
       case "hard-drop":
-        this.tone(120, 0.105, { endFrequency: 58, type: "sawtooth", volume: 0.08 });
-        this.noise(0.08, { delay: 0.025, filter: 640, volume: 0.06 });
+        this.tone(120, 0.105, { endFrequency: 58, type: "sawtooth", volume: 0.095 });
+        this.noise(0.08, { delay: 0.025, filter: 640, volume: 0.075 });
         break;
       case "lock":
-        this.tone(150, 0.055, { endFrequency: 105, type: "square", volume: 0.055 });
-        this.noise(0.045, { filter: 520, volume: 0.032 });
+        this.tone(150, 0.06, { endFrequency: 105, type: "square", volume: 0.07 });
+        this.noise(0.05, { filter: 520, volume: 0.045 });
         break;
       case "line-clear":
-        this.tone(430, 0.06, { type: "triangle", volume: 0.052 });
-        this.tone(560, 0.06, { delay: 0.055, type: "triangle", volume: 0.052 });
-        this.tone(760, 0.075, { delay: 0.115, type: "triangle", volume: 0.058 });
+        this.tone(430, 0.06, { type: "triangle", volume: 0.072 });
+        this.tone(560, 0.06, { delay: 0.055, type: "triangle", volume: 0.072 });
+        this.tone(760, 0.075, { delay: 0.115, type: "triangle", volume: 0.078 });
         break;
       case "quad-clear":
-        this.tone(360, 0.08, { type: "triangle", volume: 0.058 });
-        this.tone(540, 0.08, { delay: 0.06, type: "triangle", volume: 0.058 });
-        this.tone(720, 0.09, { delay: 0.12, type: "triangle", volume: 0.064 });
-        this.tone(1080, 0.16, { delay: 0.2, type: "square", volume: 0.054 });
-        this.noise(0.22, { delay: 0.11, filter: 2800, volume: 0.045 * intensity });
+        this.tone(360, 0.08, { type: "triangle", volume: 0.078 });
+        this.tone(540, 0.08, { delay: 0.06, type: "triangle", volume: 0.078 });
+        this.tone(720, 0.09, { delay: 0.12, type: "triangle", volume: 0.086 });
+        this.tone(1080, 0.16, { delay: 0.2, type: "square", volume: 0.074 });
+        this.noise(0.22, { delay: 0.11, filter: 2800, volume: 0.06 * intensity });
         break;
       case "pause":
         this.tone(420, 0.055, { type: "triangle", volume: 0.04 });
@@ -211,6 +213,28 @@ export class SoundEngine {
     }
   }
 
+  private duckMusicForCue(cue: SoundCue): void {
+    const audio = this.musicElement;
+
+    if (!audio || audio.paused || this.muted) {
+      return;
+    }
+
+    const ducking = getMusicDucking(cue);
+
+    if (!ducking) {
+      return;
+    }
+
+    window.clearTimeout(this.musicDuckingTimer);
+    audio.volume = ducking.volume;
+    this.musicDuckingTimer = window.setTimeout(() => {
+      if (this.musicActive && !this.muted && this.musicElement) {
+        this.musicElement.volume = MUSIC_VOLUME;
+      }
+    }, ducking.durationMs);
+  }
+
   private tone(frequency: number, duration: number, options: ToneOptions = {}): void {
     const context = this.ensureContext();
     const oscillator = context.createOscillator();
@@ -297,5 +321,22 @@ function storeMuted(muted: boolean): void {
     localStorage.setItem(SOUND_MUTED_STORAGE_KEY, String(muted));
   } catch {
     // Sound preference is optional; gameplay should continue if storage is unavailable.
+  }
+}
+
+function getMusicDucking(cue: SoundCue): { durationMs: number; volume: number } | null {
+  switch (cue) {
+    case "hard-drop":
+      return { durationMs: 260, volume: 0.12 };
+    case "lock":
+      return { durationMs: 180, volume: 0.16 };
+    case "line-clear":
+      return { durationMs: 520, volume: 0.1 };
+    case "quad-clear":
+      return { durationMs: 900, volume: 0.08 };
+    case "game-over":
+      return { durationMs: 700, volume: 0.08 };
+    default:
+      return null;
   }
 }
