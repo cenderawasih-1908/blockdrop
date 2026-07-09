@@ -42,7 +42,6 @@ export class SoundEngine {
   private master: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
   private musicElement: HTMLAudioElement | null = null;
-  private musicDuckingTimer = 0;
   private musicActive = false;
   private settings = readStoredAudioSettings();
   private muted = readStoredMuted();
@@ -119,7 +118,6 @@ export class SoundEngine {
     }
 
     void this.unlock();
-    this.duckMusicForCue(cue);
 
     switch (cue) {
       case "move":
@@ -283,28 +281,6 @@ export class SoundEngine {
     return this.muted || !this.settings.sfxEnabled ? 0 : BASE_SFX_GAIN * this.settings.sfxVolume;
   }
 
-  private duckMusicForCue(cue: SoundCue): void {
-    const audio = this.musicElement;
-
-    if (!audio || audio.paused || this.muted) {
-      return;
-    }
-
-    const ducking = getMusicDucking(cue);
-
-    if (!ducking) {
-      return;
-    }
-
-    window.clearTimeout(this.musicDuckingTimer);
-    audio.volume = Math.min(this.getMusicVolume(), this.settings.musicVolume * ducking.ratio);
-    this.musicDuckingTimer = window.setTimeout(() => {
-      if (this.musicActive && !this.muted && this.musicElement) {
-        this.musicElement.volume = this.getMusicVolume();
-      }
-    }, ducking.durationMs);
-  }
-
   private tone(frequency: number, duration: number, options: ToneOptions = {}): void {
     const context = this.ensureContext();
     const oscillator = context.createOscillator();
@@ -435,21 +411,4 @@ function normalizeAudioSettings(value: unknown): AudioSettings {
 
 function clamp01(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
-}
-
-function getMusicDucking(cue: SoundCue): { durationMs: number; ratio: number } | null {
-  switch (cue) {
-    case "hard-drop":
-      return { durationMs: 360, ratio: 0.12 };
-    case "lock":
-      return { durationMs: 260, ratio: 0.18 };
-    case "line-clear":
-      return { durationMs: 720, ratio: 0.1 };
-    case "quad-clear":
-      return { durationMs: 1150, ratio: 0.06 };
-    case "game-over":
-      return { durationMs: 900, ratio: 0.08 };
-    default:
-      return null;
-  }
 }
