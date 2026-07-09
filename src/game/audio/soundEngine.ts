@@ -1,9 +1,10 @@
 import type { SoundCue } from "./soundCues";
 
 const AUDIO_SETTINGS_STORAGE_KEY = "block-drop-audio-settings";
+const AUDIO_SETTINGS_MIX_VERSION = 2;
 const SOUND_MUTED_STORAGE_KEY = "block-drop-sound-muted";
 const MUSIC_URL = "/audio/block-drop-jingle.mp3";
-const BASE_SFX_GAIN = 0.28;
+const BASE_SFX_GAIN = 0.58;
 
 export type AudioSettings = {
   musicEnabled: boolean;
@@ -14,9 +15,13 @@ export type AudioSettings = {
 
 const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   musicEnabled: true,
-  musicVolume: 0.34,
+  musicVolume: 0.22,
   sfxEnabled: true,
   sfxVolume: 1
+};
+
+type StoredAudioSettings = Partial<AudioSettings> & {
+  mixVersion?: number;
 };
 
 type ToneOptions = {
@@ -35,6 +40,7 @@ type NoiseOptions = {
 export class SoundEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private musicElement: HTMLAudioElement | null = null;
   private musicDuckingTimer = 0;
   private musicActive = false;
@@ -127,24 +133,24 @@ export class SoundEngine {
         this.tone(118, 0.035, { type: "triangle", volume: 0.032 });
         break;
       case "hard-drop":
-        this.tone(120, 0.105, { endFrequency: 58, type: "sawtooth", volume: 0.095 });
-        this.noise(0.08, { delay: 0.025, filter: 640, volume: 0.075 });
+        this.tone(124, 0.12, { endFrequency: 52, type: "sawtooth", volume: 0.18 });
+        this.noise(0.105, { delay: 0.018, filter: 780, volume: 0.14 });
         break;
       case "lock":
-        this.tone(150, 0.06, { endFrequency: 105, type: "square", volume: 0.07 });
-        this.noise(0.05, { filter: 520, volume: 0.045 });
+        this.tone(154, 0.07, { endFrequency: 92, type: "square", volume: 0.13 });
+        this.noise(0.065, { filter: 620, volume: 0.09 });
         break;
       case "line-clear":
-        this.tone(430, 0.06, { type: "triangle", volume: 0.072 });
-        this.tone(560, 0.06, { delay: 0.055, type: "triangle", volume: 0.072 });
-        this.tone(760, 0.075, { delay: 0.115, type: "triangle", volume: 0.078 });
+        this.tone(430, 0.075, { type: "triangle", volume: 0.135 });
+        this.tone(570, 0.075, { delay: 0.055, type: "triangle", volume: 0.14 });
+        this.tone(780, 0.095, { delay: 0.118, type: "triangle", volume: 0.155 });
         break;
       case "quad-clear":
-        this.tone(360, 0.08, { type: "triangle", volume: 0.078 });
-        this.tone(540, 0.08, { delay: 0.06, type: "triangle", volume: 0.078 });
-        this.tone(720, 0.09, { delay: 0.12, type: "triangle", volume: 0.086 });
-        this.tone(1080, 0.16, { delay: 0.2, type: "square", volume: 0.074 });
-        this.noise(0.22, { delay: 0.11, filter: 2800, volume: 0.06 * intensity });
+        this.tone(360, 0.095, { type: "triangle", volume: 0.135 });
+        this.tone(540, 0.095, { delay: 0.06, type: "triangle", volume: 0.145 });
+        this.tone(760, 0.11, { delay: 0.125, type: "triangle", volume: 0.17 });
+        this.tone(1120, 0.22, { delay: 0.205, type: "square", volume: 0.145 });
+        this.noise(0.3, { delay: 0.105, filter: 3400, volume: 0.12 * intensity });
         break;
       case "pause":
         this.tone(420, 0.055, { type: "triangle", volume: 0.04 });
@@ -178,7 +184,7 @@ export class SoundEngine {
   }
 
   private ensureContext(): AudioContext {
-    if (this.context && this.master) {
+    if (this.context && this.master && this.compressor) {
       return this.context;
     }
 
@@ -186,11 +192,19 @@ export class SoundEngine {
     const AudioContextConstructor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
     const context = new AudioContextConstructor();
     const master = context.createGain();
+    const compressor = context.createDynamicsCompressor();
 
     master.gain.value = this.getSfxGain();
-    master.connect(context.destination);
+    compressor.threshold.value = -10;
+    compressor.knee.value = 8;
+    compressor.ratio.value = 6;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.12;
+    master.connect(compressor);
+    compressor.connect(context.destination);
     this.context = context;
     this.master = master;
+    this.compressor = compressor;
     return context;
   }
 
@@ -382,7 +396,15 @@ function storeMuted(muted: boolean): void {
 
 function readStoredAudioSettings(): AudioSettings {
   try {
-    return normalizeAudioSettings(JSON.parse(localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY) ?? "null"));
+    const stored = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY) ?? "null") as StoredAudioSettings | null;
+    const settings = normalizeAudioSettings(stored);
+
+    if (stored && typeof stored === "object" && stored.mixVersion !== AUDIO_SETTINGS_MIX_VERSION) {
+      settings.musicVolume = Math.min(settings.musicVolume, DEFAULT_AUDIO_SETTINGS.musicVolume);
+      storeAudioSettings(settings);
+    }
+
+    return settings;
   } catch {
     return { ...DEFAULT_AUDIO_SETTINGS };
   }
@@ -390,7 +412,7 @@ function readStoredAudioSettings(): AudioSettings {
 
 function storeAudioSettings(settings: AudioSettings): void {
   try {
-    localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify({ ...settings, mixVersion: AUDIO_SETTINGS_MIX_VERSION }));
   } catch {
     // Audio preferences are optional; gameplay should continue if storage is unavailable.
   }
@@ -418,15 +440,15 @@ function clamp01(value: unknown, fallback: number): number {
 function getMusicDucking(cue: SoundCue): { durationMs: number; ratio: number } | null {
   switch (cue) {
     case "hard-drop":
-      return { durationMs: 260, ratio: 0.35 };
+      return { durationMs: 360, ratio: 0.12 };
     case "lock":
-      return { durationMs: 180, ratio: 0.45 };
+      return { durationMs: 260, ratio: 0.18 };
     case "line-clear":
-      return { durationMs: 520, ratio: 0.3 };
+      return { durationMs: 720, ratio: 0.1 };
     case "quad-clear":
-      return { durationMs: 900, ratio: 0.24 };
+      return { durationMs: 1150, ratio: 0.06 };
     case "game-over":
-      return { durationMs: 700, ratio: 0.24 };
+      return { durationMs: 900, ratio: 0.08 };
     default:
       return null;
   }
