@@ -10,7 +10,7 @@ import {
   type GameAction,
   type KeyBindings
 } from "./game/input/actions";
-import { SoundEngine } from "./game/audio/soundEngine";
+import { SoundEngine, type AudioSettings } from "./game/audio/soundEngine";
 import { SOUND_CUE_EVENT, type SoundCueDetail } from "./game/audio/soundCues";
 import { PIECE_META, PIECES, type PieceType } from "./game/simulation/pieces";
 import type { GameSnapshot } from "./game/simulation/blockDropGame";
@@ -57,6 +57,12 @@ const clearToast = requireElement("clearToast");
 const nextGrid = requireElement("nextPiece");
 const menuButton = requireElement<HTMLButtonElement>("menuButton");
 const soundButton = requireElement<HTMLButtonElement>("soundButton");
+const musicEnabledInput = requireElement<HTMLInputElement>("musicEnabledInput");
+const musicVolumeInput = requireElement<HTMLInputElement>("musicVolumeInput");
+const musicVolumeValue = requireElement("musicVolumeValue");
+const sfxEnabledInput = requireElement<HTMLInputElement>("sfxEnabledInput");
+const sfxVolumeInput = requireElement<HTMLInputElement>("sfxVolumeInput");
+const sfxVolumeValue = requireElement("sfxVolumeValue");
 const settingsDialog = requireElement<HTMLDialogElement>("settingsDialog");
 const closeMenuButton = requireElement<HTMLButtonElement>("closeMenuButton");
 const doneMenuButton = requireElement<HTMLButtonElement>("doneMenuButton");
@@ -76,6 +82,7 @@ const soundEngine = new SoundEngine();
 
 renderBindingRows();
 publishBindings();
+syncAudioSettings();
 syncSoundButton();
 syncMainMenu();
 syncMenuGate();
@@ -109,11 +116,32 @@ document.addEventListener("keydown", () => void soundEngine.unlock(), { capture:
 menuButton.addEventListener("click", openMainMenu);
 soundButton.addEventListener("click", () => {
   const muted = soundEngine.toggleMuted();
+  syncAudioSettings();
   syncSoundButton();
 
   if (!muted) {
     void soundEngine.unlock().then(() => soundEngine.play("toggle-sound"));
   }
+});
+musicEnabledInput.addEventListener("change", () => {
+  updateAudioSettings({ musicEnabled: musicEnabledInput.checked });
+  soundEngine.play("select");
+});
+musicVolumeInput.addEventListener("input", () => {
+  updateAudioSettings({ musicVolume: readRangeValue(musicVolumeInput) });
+});
+musicVolumeInput.addEventListener("change", () => {
+  soundEngine.play("select");
+});
+sfxEnabledInput.addEventListener("change", () => {
+  updateAudioSettings({ sfxEnabled: sfxEnabledInput.checked });
+  soundEngine.play("select");
+});
+sfxVolumeInput.addEventListener("input", () => {
+  updateAudioSettings({ sfxVolume: readRangeValue(sfxVolumeInput) });
+});
+sfxVolumeInput.addEventListener("change", () => {
+  soundEngine.play("select");
 });
 mainPlayButton.addEventListener("click", () => {
   const shouldRestart = latestSnapshot?.status === "gameover";
@@ -382,6 +410,7 @@ function openSettings(): void {
   soundEngine.play("select");
   pendingBindingAction = null;
   bindingStatus.textContent = "";
+  syncAudioSettings();
   renderBindingRows();
   settingsDialog.showModal();
   syncMenuGate();
@@ -402,6 +431,35 @@ function syncSoundButton(): void {
   soundButton.setAttribute("aria-pressed", String(!muted));
   soundButton.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
   soundButton.title = muted ? "Turn sound on" : "Turn sound off";
+}
+
+function updateAudioSettings(settings: Partial<AudioSettings>): void {
+  soundEngine.updateSettings(settings);
+  syncAudioSettings();
+  syncSoundButton();
+}
+
+function syncAudioSettings(): void {
+  const settings = soundEngine.getSettings();
+
+  musicEnabledInput.checked = settings.musicEnabled;
+  sfxEnabledInput.checked = settings.sfxEnabled;
+  syncRange(musicVolumeInput, musicVolumeValue, settings.musicVolume, !settings.musicEnabled);
+  syncRange(sfxVolumeInput, sfxVolumeValue, settings.sfxVolume, !settings.sfxEnabled);
+}
+
+function syncRange(input: HTMLInputElement, valueElement: HTMLElement, value: number, disabled: boolean): void {
+  const percent = Math.round(value * 100);
+  const row = input.closest(".volume-setting");
+
+  input.value = String(percent);
+  input.disabled = disabled;
+  valueElement.textContent = `${percent}%`;
+  row?.classList.toggle("is-disabled", disabled);
+}
+
+function readRangeValue(input: HTMLInputElement): number {
+  return Math.min(1, Math.max(0, Number(input.value) / 100));
 }
 
 function toggleCredits(): void {

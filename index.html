@@ -22,7 +22,7 @@
             <h2 id="mainMenuTitle">Block Drop</h2>
             <div class="main-menu-actions">
               <button id="mainPlayButton" class="primary-action" type="button">Start</button>
-              <button id="mainConfigButton" class="secondary-action" type="button">Button Config</button>
+              <button id="mainConfigButton" class="secondary-action" type="button">Settings</button>
               <button id="mainCreditsButton" class="secondary-action" type="button" aria-expanded="false">Credits</button>
               <button id="mainRestartButton" class="secondary-action" type="button">Restart</button>
             </div>
@@ -82,12 +82,43 @@
         <header class="settings-header">
           <div>
             <span class="eyebrow">Settings</span>
-            <h2 id="settingsTitle">Button Config</h2>
+            <h2 id="settingsTitle">Settings</h2>
           </div>
           <button id="closeMenuButton" class="tool-button close-button" type="button" aria-label="Close" title="Close">&#215;</button>
         </header>
 
-        <section class="binding-panel" aria-label="Keyboard bindings">
+        <section class="settings-panel" aria-label="Audio settings">
+          <div class="settings-section-title">
+            <span class="eyebrow">Audio</span>
+          </div>
+
+          <label class="toggle-setting">
+            <span>Background Music</span>
+            <input id="musicEnabledInput" type="checkbox" />
+          </label>
+
+          <label class="volume-setting" for="musicVolumeInput">
+            <span>Music Volume</span>
+            <strong id="musicVolumeValue">34%</strong>
+            <input id="musicVolumeInput" type="range" min="0" max="100" step="1" />
+          </label>
+
+          <label class="toggle-setting">
+            <span>Drop & Clear Sounds</span>
+            <input id="sfxEnabledInput" type="checkbox" />
+          </label>
+
+          <label class="volume-setting" for="sfxVolumeInput">
+            <span>SFX Volume</span>
+            <strong id="sfxVolumeValue">100%</strong>
+            <input id="sfxVolumeInput" type="range" min="0" max="100" step="1" />
+          </label>
+        </section>
+
+        <section class="binding-panel" aria-label="Button bindings">
+          <div class="settings-section-title">
+            <span class="eyebrow">Buttons</span>
+          </div>
           <div id="bindingList" class="binding-list"></div>
           <p id="bindingStatus" class="binding-status" aria-live="polite"></p>
         </section>

@@ -343,6 +343,7 @@ h1 {
 
 .binding-key:focus-visible,
 .secondary-action:focus-visible,
+.settings-panel input:focus-visible,
 .tool-button:focus-visible,
 .primary-action:focus-visible {
   outline: 3px solid rgba(37, 199, 232, 0.75);
@@ -377,7 +378,7 @@ h1 {
 }
 
 .settings-dialog {
-  width: min(430px, calc(100vw - 28px));
+  width: min(460px, calc(100vw - 28px));
   max-height: min(720px, calc(100vh - 28px));
   padding: 0;
   border: 0;
@@ -427,10 +428,78 @@ h1 {
   flex: 0 0 auto;
 }
 
+.settings-panel,
 .binding-panel,
 .binding-list {
   display: grid;
   gap: 8px;
+}
+
+.settings-panel,
+.binding-panel {
+  padding: 12px;
+  border: 1px solid rgba(247, 239, 224, 0.12);
+  border-radius: 8px;
+  background: rgba(16, 18, 22, 0.42);
+}
+
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 18px;
+}
+
+.toggle-setting,
+.volume-setting {
+  min-width: 0;
+  border-bottom: 1px solid rgba(247, 239, 224, 0.08);
+}
+
+.toggle-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.toggle-setting input {
+  width: 44px;
+  height: 24px;
+  accent-color: var(--mint);
+  cursor: pointer;
+}
+
+.volume-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 7px 0 12px;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.volume-setting strong {
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.volume-setting input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+.volume-setting.is-disabled {
+  opacity: 0.45;
+}
+
+.volume-setting.is-disabled input {
+  cursor: not-allowed;
 }
 
 .binding-row {

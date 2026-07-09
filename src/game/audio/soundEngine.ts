@@ -1,8 +1,23 @@
 import type { SoundCue } from "./soundCues";
 
+const AUDIO_SETTINGS_STORAGE_KEY = "block-drop-audio-settings";
 const SOUND_MUTED_STORAGE_KEY = "block-drop-sound-muted";
 const MUSIC_URL = "/audio/block-drop-jingle.mp3";
-const MUSIC_VOLUME = 0.34;
+const BASE_SFX_GAIN = 0.28;
+
+export type AudioSettings = {
+  musicEnabled: boolean;
+  musicVolume: number;
+  sfxEnabled: boolean;
+  sfxVolume: number;
+};
+
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  musicEnabled: true,
+  musicVolume: 0.34,
+  sfxEnabled: true,
+  sfxVolume: 1
+};
 
 type ToneOptions = {
   delay?: number;
@@ -23,6 +38,7 @@ export class SoundEngine {
   private musicElement: HTMLAudioElement | null = null;
   private musicDuckingTimer = 0;
   private musicActive = false;
+  private settings = readStoredAudioSettings();
   private muted = readStoredMuted();
   private lastPlayed = new Map<SoundCue, number>();
 
@@ -30,9 +46,29 @@ export class SoundEngine {
     return this.muted;
   }
 
+  getSettings(): AudioSettings {
+    return { ...this.settings };
+  }
+
+  updateSettings(settings: Partial<AudioSettings>): AudioSettings {
+    this.settings = normalizeAudioSettings({ ...this.settings, ...settings });
+    storeAudioSettings(this.settings);
+    this.applySfxVolume();
+    this.applyMusicVolume();
+
+    if (!this.settings.musicEnabled || this.settings.musicVolume <= 0) {
+      this.stopMusic();
+    } else if (this.musicActive && !this.muted) {
+      void this.startMusic();
+    }
+
+    return this.getSettings();
+  }
+
   toggleMuted(): boolean {
     this.muted = !this.muted;
     storeMuted(this.muted);
+    this.applySfxVolume();
 
     if (this.muted) {
       this.stopMusic();
@@ -72,7 +108,7 @@ export class SoundEngine {
       this.setMusicActive(false);
     }
 
-    if (this.muted || this.isThrottled(cue)) {
+    if (this.muted || !this.settings.sfxEnabled || this.settings.sfxVolume <= 0 || this.isThrottled(cue)) {
       return;
     }
 
@@ -151,7 +187,7 @@ export class SoundEngine {
     const context = new AudioContextConstructor();
     const master = context.createGain();
 
-    master.gain.value = 0.28;
+    master.gain.value = this.getSfxGain();
     master.connect(context.destination);
     this.context = context;
     this.master = master;
@@ -161,7 +197,7 @@ export class SoundEngine {
   private setMusicActive(active: boolean): void {
     this.musicActive = active;
 
-    if (!active || this.muted) {
+    if (!active || this.muted || !this.settings.musicEnabled || this.settings.musicVolume <= 0) {
       this.stopMusic();
       return;
     }
@@ -180,19 +216,19 @@ export class SoundEngine {
     audio.src = MUSIC_URL;
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = MUSIC_VOLUME;
+    audio.volume = this.getMusicVolume();
     this.musicElement = audio;
     return audio;
   }
 
   private async startMusic(): Promise<void> {
-    if (this.muted || !this.musicActive) {
+    if (this.muted || !this.musicActive || !this.settings.musicEnabled || this.settings.musicVolume <= 0) {
       return;
     }
 
     const audio = this.ensureMusicElement();
 
-    audio.volume = MUSIC_VOLUME;
+    audio.volume = this.getMusicVolume();
 
     if (!audio.paused) {
       return;
@@ -213,6 +249,26 @@ export class SoundEngine {
     }
   }
 
+  private applyMusicVolume(): void {
+    if (this.musicElement) {
+      this.musicElement.volume = this.getMusicVolume();
+    }
+  }
+
+  private applySfxVolume(): void {
+    if (this.master) {
+      this.master.gain.value = this.getSfxGain();
+    }
+  }
+
+  private getMusicVolume(): number {
+    return this.muted || !this.settings.musicEnabled ? 0 : this.settings.musicVolume;
+  }
+
+  private getSfxGain(): number {
+    return this.muted || !this.settings.sfxEnabled ? 0 : BASE_SFX_GAIN * this.settings.sfxVolume;
+  }
+
   private duckMusicForCue(cue: SoundCue): void {
     const audio = this.musicElement;
 
@@ -227,10 +283,10 @@ export class SoundEngine {
     }
 
     window.clearTimeout(this.musicDuckingTimer);
-    audio.volume = ducking.volume;
+    audio.volume = Math.min(this.getMusicVolume(), this.settings.musicVolume * ducking.ratio);
     this.musicDuckingTimer = window.setTimeout(() => {
       if (this.musicActive && !this.muted && this.musicElement) {
-        this.musicElement.volume = MUSIC_VOLUME;
+        this.musicElement.volume = this.getMusicVolume();
       }
     }, ducking.durationMs);
   }
@@ -324,18 +380,53 @@ function storeMuted(muted: boolean): void {
   }
 }
 
-function getMusicDucking(cue: SoundCue): { durationMs: number; volume: number } | null {
+function readStoredAudioSettings(): AudioSettings {
+  try {
+    return normalizeAudioSettings(JSON.parse(localStorage.getItem(AUDIO_SETTINGS_STORAGE_KEY) ?? "null"));
+  } catch {
+    return { ...DEFAULT_AUDIO_SETTINGS };
+  }
+}
+
+function storeAudioSettings(settings: AudioSettings): void {
+  try {
+    localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Audio preferences are optional; gameplay should continue if storage is unavailable.
+  }
+}
+
+function normalizeAudioSettings(value: unknown): AudioSettings {
+  if (!value || typeof value !== "object") {
+    return { ...DEFAULT_AUDIO_SETTINGS };
+  }
+
+  const candidate = value as Partial<AudioSettings>;
+
+  return {
+    musicEnabled: typeof candidate.musicEnabled === "boolean" ? candidate.musicEnabled : DEFAULT_AUDIO_SETTINGS.musicEnabled,
+    musicVolume: clamp01(candidate.musicVolume, DEFAULT_AUDIO_SETTINGS.musicVolume),
+    sfxEnabled: typeof candidate.sfxEnabled === "boolean" ? candidate.sfxEnabled : DEFAULT_AUDIO_SETTINGS.sfxEnabled,
+    sfxVolume: clamp01(candidate.sfxVolume, DEFAULT_AUDIO_SETTINGS.sfxVolume)
+  };
+}
+
+function clamp01(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
+}
+
+function getMusicDucking(cue: SoundCue): { durationMs: number; ratio: number } | null {
   switch (cue) {
     case "hard-drop":
-      return { durationMs: 260, volume: 0.12 };
+      return { durationMs: 260, ratio: 0.35 };
     case "lock":
-      return { durationMs: 180, volume: 0.16 };
+      return { durationMs: 180, ratio: 0.45 };
     case "line-clear":
-      return { durationMs: 520, volume: 0.1 };
+      return { durationMs: 520, ratio: 0.3 };
     case "quad-clear":
-      return { durationMs: 900, volume: 0.08 };
+      return { durationMs: 900, ratio: 0.24 };
     case "game-over":
-      return { durationMs: 700, volume: 0.08 };
+      return { durationMs: 700, ratio: 0.24 };
     default:
       return null;
   }
